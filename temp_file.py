@@ -129,3 +129,100 @@ class WatershedUtils():
             for p in current_level_pixels:
                 dist[p] = 0
                 if lab[p] == -2:
+                    curlab += 1
+                    queue.append(p)
+                    lab[p] = curlab
+                    while queue:
+                        q = queue.pop(0)
+                        for r in neighbors(q):
+                            if lab[r] == -2:
+                                queue.append(r)
+                                lab[r] = curlab
+        
+        # Convert the label image to RGB for visualization
+        label_rgb = np.zeros((*lab.shape, 3), dtype=np.uint8)
+        unique_labels = np.unique(lab)
+        for label in unique_labels:
+            if label == -1:
+                color = [0, 0, 0]  # Background
+            elif label == 0:
+                color = [255, 0, 0]  # Watershed
+            else:
+                color = np.random.randint(0, 255, 3)  # Random color for each label
+            label_rgb[lab == label] = color
+        
+        # Convert back to Pillow image
+        pil_label_rgb = Image.fromarray(label_rgb)
+        pil_label_hsv = pil_label_rgb.convert('HSV')
+        
+        return pil_label_hsv
+
+class CannyDialog(QDialog):
+    def __init__(self, parent=None, current_image_hsv=None):
+        super().__init__(parent)
+        self.setWindowTitle('Canny Edge gradient_magnitudeection')
+
+        self.current_image_hsv = current_image_hsv  # Store the current image
+        self.current_image_rgb = current_image_hsv.convert('RGB')  # Convert to RGB for processing
+
+        # Create layout
+        layout = QVBoxLayout()
+
+        # Smoothing parameters
+        self.kernel_size_label = QLabel("Gaussian Kernel Size:")
+        self.kernel_size_slider = QSlider(Qt.Orientation.Horizontal)
+        self.kernel_size_slider.setRange(1, 16)
+        self.kernel_size_slider.setValue(2)
+        self.kernel_size_slider.setSingleStep(1)
+        self.kernel_size_slider.setTickInterval(1)
+        self.kernel_size_slider.setTickPosition(QSlider.TickPosition.TicksBelow)
+        self.kernel_size_value_label = QLabel("3")
+
+        self.sigma_label = QLabel("Sigma:")
+        self.sigma_slider = QSlider(Qt.Orientation.Horizontal)
+        self.sigma_slider.setRange(1, 100)
+        self.sigma_slider.setValue(10)
+        self.sigma_slider.setSingleStep(1)
+        self.sigma_slider.setTickInterval(10)
+        self.sigma_slider.setTickPosition(QSlider.TickPosition.TicksBelow)
+        self.sigma_value_label = QLabel("1.0")
+
+        # Hysteresis thresholds
+        self.low_threshold_label = QLabel("Low Threshold:")
+        self.low_threshold_slider = QSlider(Qt.Orientation.Horizontal)
+        self.low_threshold_slider.setRange(0, 255)
+        self.low_threshold_slider.setValue(50)
+        self.low_threshold_value_label = QLabel("50")
+
+        self.high_threshold_label = QLabel("High Threshold:")
+        self.high_threshold_slider = QSlider(Qt.Orientation.Horizontal)
+        self.high_threshold_slider.setRange(0, 255)
+        self.high_threshold_slider.setValue(150)
+        self.high_threshold_value_label = QLabel("150")
+
+        # Buttons
+        self.preview_button = QPushButton("Preview")
+        self.apply_button = QPushButton("Apply")
+        self.cancel_button = QPushButton("Cancel")
+
+        # Layouts
+        layout.addWidget(self.kernel_size_label)
+        layout.addWidget(self.kernel_size_slider)
+        layout.addWidget(self.kernel_size_value_label)
+
+        layout.addWidget(self.sigma_label)
+        layout.addWidget(self.sigma_slider)
+        layout.addWidget(self.sigma_value_label)
+
+        layout.addWidget(self.low_threshold_label)
+        layout.addWidget(self.low_threshold_slider)
+        layout.addWidget(self.low_threshold_value_label)
+
+        layout.addWidget(self.high_threshold_label)
+        layout.addWidget(self.high_threshold_slider)
+        layout.addWidget(self.high_threshold_value_label)
+
+        button_layout = QHBoxLayout()
+        button_layout.addWidget(self.preview_button)
+        button_layout.addWidget(self.apply_button)
+        button_layout.addWidget(self.cancel_button)
