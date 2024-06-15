@@ -226,3 +226,141 @@ class CannyDialog(QDialog):
         button_layout.addWidget(self.preview_button)
         button_layout.addWidget(self.apply_button)
         button_layout.addWidget(self.cancel_button)
+        layout.addLayout(button_layout)
+
+        self.setLayout(layout)
+
+        # Connect signals
+        self.kernel_size_slider.valueChanged.connect(self.update_parameters)
+        self.sigma_slider.valueChanged.connect(self.update_parameters)
+        self.low_threshold_slider.valueChanged.connect(self.update_parameters)
+        self.high_threshold_slider.valueChanged.connect(self.update_parameters)
+
+        self.preview_button.clicked.connect(self.preview_canny)
+        self.apply_button.clicked.connect(self.on_apply_clicked)
+        self.cancel_button.clicked.connect(self.reject)
+
+        self.processed_image = None
+
+    def update_parameters(self):
+        self.kernel_size_value_label.setText(str(2* self.kernel_size_slider.value() -1))
+        self.sigma_value_label.setText(f"{self.sigma_slider.value() / 10.0:.1f}")
+        self.low_threshold_value_label.setText(str(self.low_threshold_slider.value()))
+        self.high_threshold_value_label.setText(str(self.high_threshold_slider.value()))
+
+    def gaussian_blur(self, image, kernel_size, sigma):
+        kernel_maker = KernelMaker()
+        kernel_maker.set_gaussian_kernel(kernel_size, kernel_size, sigma)
+        kernel = kernel_maker.get_kernel()
+        return convolve(image, kernel)
+    
+    def compute_gradient(self, image):
+        
+        # Sobel operators for x and y directions
+        sobel_x = np.array([[-1, 0, 1],
+                            [-2, 0, 2],
+                            [-1, 0, 1]])
+        sobel_y = np.array([[-1, -2, -1],
+                            [0, 0, 0],
+                            [1, 2, 1]])
+
+        # Compute gradients using convolve2d
+        Gx = convolve2d(image, sobel_x, mode='same', boundary='symm')
+        Gy = convolve2d(image, sobel_y, mode='same', boundary='symm')
+
+        # Compute gradient magnitude and direction
+        gradient_magnitude = np.sqrt(Gx**2 + Gy**2)
+        gradient_direction = np.arctan2(Gy, Gx) * 180 / np.pi  # Convert to degrees
+
+        return gradient_magnitude, gradient_direction
+
+    def non_maximum_suppression(self, gradient_magnitude, gradient_direction):
+        
+        gmax = np.zeros(gradient_magnitude.shape)
+        angle = gradient_direction
+
+        # Normalize angle to range [0, 180)
+        angle = angle % 180
+
+        # Padding to avoid boundary issues
+        padded_gradient = np.pad(gradient_magnitude, ((1, 1), (1, 1)), mode='constant')
+        padded_angle = np.pad(angle, ((1, 1), (1, 1)), mode='constant')
+
+        for i in range(1, gradient_magnitude.shape[0] + 1):
+            for j in range(1, gradient_magnitude.shape[1] + 1):
+                # 0 degrees
+                if (padded_angle[i, j] >= 0 and padded_angle[i, j] < 22.5) or (padded_angle[i, j] >= 157.5 and padded_angle[i, j] < 180):
+                    if padded_gradient[i, j] >= padded_gradient[i, j + 1] and padded_gradient[i, j] >= padded_gradient[i, j - 1]:
+                        gmax[i - 1, j - 1] = padded_gradient[i, j]
+                # 45 degrees
+                elif (padded_angle[i, j] >= 22.5 and padded_angle[i, j] < 67.5):
+                    if padded_gradient[i, j] >= padded_gradient[i - 1, j + 1] and padded_gradient[i, j] >= padded_gradient[i + 1, j - 1]:
+                        gmax[i - 1, j - 1] = padded_gradient[i, j]
+                # 90 degrees
+                elif (padded_angle[i, j] >= 67.5 and padded_angle[i, j] < 112.5):
+                    if padded_gradient[i, j] >= padded_gradient[i - 1, j] and padded_gradient[i, j] >= padded_gradient[i + 1, j]:
+                        gmax[i - 1, j - 1] = padded_gradient[i, j]
+                # 135 degrees
+                elif (padded_angle[i, j] >= 112.5 and padded_angle[i, j] < 157.5):
+                    if padded_gradient[i, j] >= padded_gradient[i - 1, j - 1] and padded_gradient[i, j] >= padded_gradient[i + 1, j + 1]:
+                        gmax[i - 1, j - 1] = padded_gradient[i, j]
+
+        # Remove false positive outliers and normalize
+        #high_value = np.percentile(gmax, 98)
+        #gmax = np.clip(gmax, 0, high_value)
+        # gmax = (gmax - gmax.min()) / (gmax.max() - gmax.min()) * 255
+
+        # Calculate the range of the gmax values
+        value_range = gmax.max() - gmax.min()
+
+        # Only perform the normalization if the range is non-zero
+        if value_range != 0:
+            gmax = (gmax - gmax.min()) / value_range * 255
+        else:
+            # If all values are the same, set gmax to 0 (or any appropriate value, depending on your application)
+            gmax = np.zeros_like(gmax)
+
+        return gmax
+    
+    def double_threshold(self, nms_image, low_threshold, high_threshold):
+        thres  = np.zeros(nms_image.shape)
+        strong = 1 * 255
+        weak   = 0.2 * 255
+        mmax = np.max(nms_image)
+        lo = (low_threshold/255)*mmax
+        hi = (high_threshold/255)*mmax
+        #lo, hi = 0.1 * mmax,0.8 * mmax
+        strongs = []
+        weaks = []
+        for i in range(nms_image.shape[0]):
+            for j in range(nms_image.shape[1]):
+                px = nms_image[i][j]
+                if px >= hi:
+                    thres[i][j] = strong
+                    strongs.append((i, j))
+                elif px >= lo:
+                    thres[i][j] = weak
+
+        return thres, weak, strong
+
+    def edge_tracking_by_hysteresis(self, image, weak, strong=255):
+    
+        strong_i, strong_j = np.where(image == strong)
+        strongs = list(zip(strong_i, strong_j))
+        
+        
+        # Initialize result image with zeros
+        result_image = np.zeros_like(image)
+        image = np.pad(image, pad_width=1, mode='constant', constant_values=0)
+        
+        while strongs:
+            i, j = strongs.pop()
+            
+            weak_i, weak_j = np.where(image[i-1:i+1, j-1:j+1] == weak)
+            result_image[i, j] = strong
+            for wi, wj in zip(weak_i, weak_j):
+                strongs.append((wi, wj))
+
+        return result_image
+
+    def apply_canny(self):
