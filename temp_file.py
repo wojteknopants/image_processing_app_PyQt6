@@ -364,3 +364,121 @@ class CannyDialog(QDialog):
         return result_image
 
     def apply_canny(self):
+        kernel_size = 2 * self.kernel_size_slider.value() -1
+        sigma = self.sigma_slider.value() / 10.0
+        low_threshold = self.low_threshold_slider.value()
+        high_threshold = self.high_threshold_slider.value()
+
+        # Convert the image to grayscale
+        gray_image = self.current_image_rgb.convert('L')
+        gray_array = np.array(gray_image)
+
+        # Apply Gaussian blur
+        blurred = self.gaussian_blur(gray_array, kernel_size, sigma)
+        img = Image.fromarray(blurred.astype(np.uint8), 'L')
+        img.save("1-Gauss.png")
+
+        # Compute gradients
+        gradient_magnitude, gradient_direction = self.compute_gradient(blurred)
+
+        # Non-maximum suppression
+        nms_image = self.non_maximum_suppression(gradient_magnitude, gradient_direction)
+        nms_image_normalized = (nms_image / nms_image.max()) * 255  # Normalize for visualization
+        img = Image.fromarray(nms_image_normalized.astype(np.uint8), 'L')
+        img.save("2-NMS.png")
+
+        # Double threshold
+        threshold_image, weak, strong = self.double_threshold(nms_image, low_threshold, high_threshold)
+        img = Image.fromarray(threshold_image.astype(np.uint8), 'L')
+        img.save("3-Threshold.png")
+
+        # Edge tracking by hysteresis
+        final_image = self.edge_tracking_by_hysteresis(threshold_image, weak, strong)
+        img = Image.fromarray(final_image.astype(np.uint8), 'L')
+        img.save("4-Edge_tracking.png")
+
+        final_image_pil = img.convert('HSV')
+        return final_image_pil
+    
+    def apply_canny_cv2(self):
+        kernel_size = 2 * self.kernel_size_slider.value() - 1
+        sigma = self.sigma_slider.value() / 10.0
+        low_threshold = self.low_threshold_slider.value()
+        high_threshold = self.high_threshold_slider.value()
+
+        # Convert the image to grayscale
+        gray_image = self.current_image_rgb.convert('L')
+
+        # Apply Gaussian blur using KernelMaker
+        kernel_maker = KernelMaker()
+        kernel_maker.set_gaussian_kernel(kernel_size, kernel_size, sigma)
+        blurred_image = kernel_maker.perform_convolution(gray_image)
+        blurred_array = np.array(blurred_image.convert('L'))
+        img = Image.fromarray(blurred_array.astype(np.uint8), 'L')
+        img.save("1-Gauss.png")
+
+        # Apply Canny edge detection using OpenCV
+        edges = cv2.Canny(blurred_array.astype(np.uint8), low_threshold, high_threshold)
+        img = Image.fromarray(edges.astype(np.uint8), 'L')
+        img.save("2-Canny.png")
+
+        final_image_pil = img.convert('HSV')
+        return final_image_pil
+        
+
+
+        
+
+
+    def preview_canny(self):
+        self.processed_image = self.apply_canny()
+        self.parent().display_image(self.processed_image)
+
+    def on_apply_clicked(self):
+        self.processed_image = self.apply_canny_cv2()
+        self.accept()
+
+    def get_processed_image(self):
+        return self.processed_image
+    
+class BinarizationDialog(QDialog):
+    def __init__(self, parent=None, current_image_hsv=None):
+        super().__init__(parent)
+        self.setWindowTitle('Binarization')
+
+        self.current_image_hsv = current_image_hsv  # Store the current image
+        self.processed_image = None
+
+        # Convert to grayscale
+        self.current_image_gray = self.convert_to_grayscale(self.current_image_hsv)
+
+        # Create layout
+        layout = QVBoxLayout()
+
+        # Slider for manual threshold adjustment
+        self.threshold_slider = QSlider(Qt.Orientation.Horizontal)
+        self.threshold_slider.setRange(0, 255)
+        self.threshold_slider.setValue(128)
+        self.threshold_slider.valueChanged.connect(self.update_binarization)
+        layout.addWidget(QLabel("Binarization Threshold:"))
+        layout.addWidget(self.threshold_slider)
+
+        # Label to show current threshold value
+        self.threshold_label = QLabel("Threshold: 128")
+        layout.addWidget(self.threshold_label)
+
+        # Button for setting threshold with Otsu's algorithm
+        self.otsu_button = QPushButton("Set with Otsu Algo")
+        self.otsu_button.clicked.connect(self.apply_otsu_threshold)
+        layout.addWidget(self.otsu_button)
+
+        # Buttons for apply and cancel
+        button_layout = QHBoxLayout()
+        self.apply_button = QPushButton("Apply")
+        self.cancel_button = QPushButton("Cancel")
+        button_layout.addWidget(self.cancel_button)
+        button_layout.addWidget(self.apply_button)
+        
+
+        layout.addLayout(button_layout)
+        self.setLayout(layout)
