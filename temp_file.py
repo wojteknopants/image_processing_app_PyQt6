@@ -482,3 +482,31 @@ class BinarizationDialog(QDialog):
 
         layout.addLayout(button_layout)
         self.setLayout(layout)
+
+        # Connect signals
+        self.apply_button.clicked.connect(self.on_apply_clicked)
+        self.cancel_button.clicked.connect(self.reject)
+
+    def convert_to_grayscale(self, hsv_image):
+        rgb_image = hsv_image.convert('RGB')
+        gray_image = rgb_image.convert('L')  # Convert to grayscale
+        return gray_image
+
+    def update_binarization(self):
+        threshold = self.threshold_slider.value()
+        self.threshold_label.setText(f"Threshold: {threshold}")
+        self.processed_image = self.binarize_image(self.current_image_gray, threshold)
+        self.parent().display_image(self.processed_image)
+
+    def apply_otsu_threshold(self):
+        threshold = self.calculate_otsu_threshold(self.current_image_gray)
+        self.threshold_slider.setValue(threshold)
+        self.threshold_label.setText(f"Threshold: {threshold}")
+        self.update_binarization()
+
+    def binarize_image(self, gray_image, threshold):
+        gray_array = np.array(gray_image)
+        binary_array = (gray_array > threshold) * 255
+        binary_image = Image.fromarray(binary_array.astype(np.uint8), 'L')
+        return binary_image.convert('HSV')
+
