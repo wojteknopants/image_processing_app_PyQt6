@@ -510,3 +510,53 @@ class BinarizationDialog(QDialog):
         binary_image = Image.fromarray(binary_array.astype(np.uint8), 'L')
         return binary_image.convert('HSV')
 
+    def calculate_otsu_threshold(self, gray_image):
+        gray_array = np.array(gray_image)
+        hist, bin_edges = np.histogram(gray_array, bins=256, range=(0, 255))
+        total_pixels = gray_array.size
+        sum_total = np.dot(np.arange(256), hist)
+        sum_background, weight_background, weight_foreground, var_max, threshold = 0, 0, 0, 0, 0
+
+        for i in range(256):
+            weight_background += hist[i]
+            if weight_background == 0:
+                continue
+            weight_foreground = total_pixels - weight_background
+            if weight_foreground == 0:
+                break
+            sum_background += i * hist[i]
+            mean_background = sum_background / weight_background
+            mean_foreground = (sum_total - sum_background) / weight_foreground
+            var_between = weight_background * weight_foreground * (mean_background - mean_foreground) ** 2
+            if var_between > var_max:
+                var_max = var_between
+                threshold = i
+        return threshold
+
+    def on_apply_clicked(self):
+        self.processed_image = self.binarize_image(self.current_image_gray, self.threshold_slider.value())
+        self.accept()
+
+    def get_processed_image(self):
+        return self.processed_image
+
+    def get_action_name(self):
+        return "Applied Binarization"
+    
+class KernelMaker:
+    def __init__(self):
+        self.kernel = None
+
+    def set_custom_kernel(self, custom_kernel):
+        
+        if not isinstance(custom_kernel, np.ndarray):
+            raise TypeError("Custom kernel must be a numpy array.")
+        
+        if custom_kernel.ndim != 2:
+            raise ValueError("Custom kernel must be a 2D array.")
+        
+        self.kernel = custom_kernel
+
+    def set_gaussian_kernel(self, size_x, size_y, sigma=1.0):
+        
+        center_x = (size_x - 1) / 2
