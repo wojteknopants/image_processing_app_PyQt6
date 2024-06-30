@@ -560,3 +560,77 @@ class KernelMaker:
     def set_gaussian_kernel(self, size_x, size_y, sigma=1.0):
         
         center_x = (size_x - 1) / 2
+        center_y = (size_y - 1) / 2
+
+        kernel = np.fromfunction(
+            lambda x, y: (1 / (2 * np.pi * sigma**2)) * 
+                         np.exp(-((x - center_x)**2 + (y - center_y)**2) / (2 * sigma**2)),
+            (size_y, size_x)
+        )
+        self.kernel = kernel / np.sum(kernel)
+
+    def set_log_kernel(self, size_x=None, size_y=None, sigma=1.0):
+        if size_x is None or size_y is None:
+            size_x = size_y = int(np.ceil(sigma * 6))
+            if size_x % 2 == 0:
+                size_x += 1
+            if size_y % 2 == 0:
+                size_y += 1
+        
+        K = 1.6
+        center_x = (size_x - 1) / 2
+        center_y = (size_y - 1) / 2
+
+        gauss1 = np.fromfunction(
+            lambda x, y: (1 / (2 * np.pi * sigma**2)) * 
+                         np.exp(-((x - center_x)**2 + (y - center_y)**2) / (2 * sigma**2)),
+            (size_y, size_x)
+        )
+        gauss2 = np.fromfunction(
+            lambda x, y: (1 / (2 * np.pi * (K * sigma)**2)) * 
+                         np.exp(-((x - center_x)**2 + (y - center_y)**2) / (2 * (K * sigma)**2)),
+            (size_y, size_x)
+        )
+
+        kernel = gauss1 - gauss2
+        self.kernel = kernel / np.sum(kernel)
+
+    def set_mean_blur_kernel(self, size_x=3, size_y=3):
+        
+        self.kernel = np.ones((size_y, size_x)) / (size_x * size_y)
+
+    def set_sharpen_kernel(self):
+        """
+        Set a sharpening kernel.
+        """
+        self.kernel = np.array([[0, -1, 0], 
+                                [-1, 5, -1], 
+                                [0, -1, 0]])
+
+    def set_sobel_kernel(self, axis):
+        
+        if axis == 'y':
+            self.kernel = np.array([[-1, 0, 1], 
+                                    [-2, 0, 2], 
+                                    [-1, 0, 1]])
+        elif axis == 'x':
+            self.kernel = np.array([[-1, -2, -1], 
+                                    [0, 0, 0], 
+                                    [1, 2, 1]])
+        else:
+            raise ValueError("Axis must be 'x' or 'y'.")
+
+    def set_prewitt_kernel(self, axis):
+        
+        if axis == 'y':
+            self.kernel = np.array([[-1, 0, 1], 
+                                    [-1, 0, 1], 
+                                    [-1, 0, 1]])
+        elif axis == 'x':
+            self.kernel = np.array([[-1, -1, -1], 
+                                    [0, 0, 0], 
+                                    [1, 1, 1]])
+        else:
+            raise ValueError("Axis must be 'x' or 'y'.")
+
+    def set_roberts_kernel(self, axis):
