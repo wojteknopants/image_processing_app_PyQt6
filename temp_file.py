@@ -634,3 +634,163 @@ class KernelMaker:
             raise ValueError("Axis must be 'x' or 'y'.")
 
     def set_roberts_kernel(self, axis):
+        
+        if axis == 'y':
+            self.kernel = np.array([[1, 0], 
+                                    [0, -1]])
+        elif axis == 'x':
+            self.kernel = np.array([[0, 1], 
+                                    [-1, 0]])
+        else:
+            raise ValueError("Axis must be 'x' or 'y'.")
+
+    def set_laplacian_kernel(self):
+        
+        self.kernel = np.array([[0, 1, 0], 
+                                [1, -4, 1], 
+                                [0, 1, 0]])
+
+    def get_kernel(self):
+        
+        return self.kernel
+
+    def perform_convolution(self, image):
+        
+        if self.kernel is None:
+            raise ValueError("No kernel has been set.")
+        
+        # Convert image to RGB if necessary
+        if image.mode != 'RGB':
+            image = image.convert('RGB')
+        
+        # Convert image to numpy array
+        image_array = np.array(image)
+
+        # Perform convolution on each channel separately
+        channels = []
+        
+        for i in range(3):
+            channel = image_array[..., i]
+            convoluted_channel = convolve2d(channel, self.kernel, mode='same', boundary='symm')
+            channels.append(convoluted_channel)
+    
+        # Stack channels back into an image
+        convoluted_image_array = np.stack(channels, axis=-1)
+        
+        # Clip values to the valid range [0, 255] and convert to uint8
+        convoluted_image_array = np.clip(convoluted_image_array, 0, 255).astype(np.uint8)
+        
+        # Convert back to Pillow Image and then to HSV
+        convoluted_image = Image.fromarray(convoluted_image_array, 'RGB').convert('HSV')
+        return convoluted_image
+
+class ConvolutionFilterDialog(QDialog):
+    def __init__(self, parent=None, current_image_hsv=None):
+        super().__init__(parent)
+        self.setWindowTitle('Convolution Filters')
+
+        self.current_image_hsv = current_image_hsv  # Store the current image
+        self.kernel_maker = KernelMaker()
+        self.selected_filter_name = ""
+
+        # Create layout
+        layout = QVBoxLayout()
+
+        # Filter selection radio buttons
+        self.radio_group = QButtonGroup(self)
+        self.radio_mean_blur = QRadioButton("Mean Blur")
+        self.radio_sharpen = QRadioButton("Sharpen")
+        self.radio_gaussian = QRadioButton("Gaussian Blur")
+        self.radio_log = QRadioButton("LoG")
+        self.radio_sobel_h = QRadioButton("Sobel (H)")
+        self.radio_sobel_v = QRadioButton("Sobel (V))")
+        self.radio_prewitt_h = QRadioButton("Prewitt (H))")
+        self.radio_prewitt_v = QRadioButton("Prewitt (V)")
+        self.radio_roberts_h = QRadioButton("Roberts (H)")
+        self.radio_roberts_v = QRadioButton("Roberts (V)")
+        self.radio_laplace = QRadioButton("Laplacian")
+        self.radio_custom = QRadioButton("Custom")
+
+
+        self.radio_group.addButton(self.radio_mean_blur)
+        self.radio_group.addButton(self.radio_gaussian)
+        self.radio_group.addButton(self.radio_sharpen)
+        self.radio_group.addButton(self.radio_custom)
+        self.radio_group.addButton(self.radio_sobel_h)
+        self.radio_group.addButton(self.radio_sobel_v)
+        self.radio_group.addButton(self.radio_prewitt_h)
+        self.radio_group.addButton(self.radio_prewitt_v)
+        self.radio_group.addButton(self.radio_roberts_h)
+        self.radio_group.addButton(self.radio_roberts_v)
+        self.radio_group.addButton(self.radio_laplace)
+        self.radio_group.addButton(self.radio_log)
+        self.radio_group.buttonClicked.connect(self.on_filter_selected)
+
+
+        # Gaussian and LoG parameter fields
+        self.size_x_label = QLabel("X:")
+        self.size_x_spinbox = QSpinBox()
+        self.size_x_spinbox.setRange(1, 100)
+        self.size_x_spinbox.setValue(3)
+        self.size_x_spinbox.setMinimumWidth(50)
+        self.size_y_label = QLabel("Y:")
+        self.size_y_spinbox = QSpinBox()
+        self.size_y_spinbox.setRange(1, 100)
+        self.size_y_spinbox.setValue(3)
+        self.size_y_spinbox.setMinimumWidth(50)
+        self.sigma_label = QLabel("Sigma:")
+        self.sigma_spinbox = QDoubleSpinBox()
+        self.sigma_spinbox.setRange(0.1, 100.0)
+        self.sigma_spinbox.setValue(1.0)
+        self.sigma_spinbox.setMinimumWidth(50)
+        self.calculate_button = QPushButton("Calculate Kernel")
+        self.calculate_button.clicked.connect(self.update_kernel_display)
+
+        # Create HBoxes for parameters
+        self.label_parameters = QLabel("Parameters")
+        self.hbox_parameters = QHBoxLayout()
+        self.hbox_parameters.addWidget(self.size_x_label)
+        self.hbox_parameters.addWidget(self.size_x_spinbox)
+        self.hbox_parameters.addWidget(self.size_y_label)
+        self.hbox_parameters.addWidget(self.size_y_spinbox)
+        self.hbox_parameters.addWidget(self.sigma_label)
+        self.hbox_parameters.addWidget(self.sigma_spinbox)
+        self.hbox_parameters.addWidget(self.calculate_button)
+
+        # Main VBox layout
+        layout.addWidget(self.radio_mean_blur)
+        layout.addWidget(self.radio_gaussian)
+        layout.addWidget(self.radio_sharpen)
+        layout.addWidget(self.radio_sobel_h)
+        layout.addWidget(self.radio_sobel_v)
+        layout.addWidget(self.radio_prewitt_h)
+        layout.addWidget(self.radio_prewitt_v)
+        layout.addWidget(self.radio_roberts_h)
+        layout.addWidget(self.radio_roberts_v)
+        layout.addWidget(self.radio_laplace)
+        layout.addWidget(self.radio_log)
+        layout.addWidget(self.radio_custom)
+        layout.addWidget(self.label_parameters)
+        layout.addLayout(self.hbox_parameters)
+        self.label_custom = QLabel("Editing Enabled - type your kernel below")
+        layout.addWidget(self.label_custom)
+
+        # Kernel display field
+        self.kernel_display = QTextEdit()
+        self.kernel_display.setReadOnly(True)
+        layout.addWidget(self.kernel_display)
+
+        # Buttons
+        button_layout = QHBoxLayout()
+        self.apply_button = QPushButton("Apply")
+        self.apply_button.clicked.connect(self.on_apply_clicked)
+        self.preview_button = QPushButton("Preview")
+        self.preview_button.clicked.connect(self.on_preview_clicked)
+        self.cancel_button = QPushButton("Cancel")
+        self.cancel_button.clicked.connect(self.reject)
+        button_layout.addWidget(self.cancel_button)
+        button_layout.addWidget(self.preview_button)
+        button_layout.addWidget(self.apply_button)
+        layout.addLayout(button_layout)
+        self.setLayout(layout)
+
