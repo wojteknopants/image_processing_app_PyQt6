@@ -794,3 +794,65 @@ class ConvolutionFilterDialog(QDialog):
         layout.addLayout(button_layout)
         self.setLayout(layout)
 
+
+        self.kernel = None
+        self.processed_image = None
+
+        self.update_ui_elements()
+
+
+    def on_filter_selected(self, button):
+        # Update UI based on selected filter
+        self.update_ui_elements()
+        if self.radio_gaussian.isChecked() or self.radio_log.isChecked() or self.radio_custom.isChecked() or self.radio_mean_blur.isChecked():
+            return
+        self.update_kernel_display()
+
+    def update_ui_elements(self):
+        if self.radio_gaussian.isChecked() or self.radio_log.isChecked():
+
+            self.label_parameters.setVisible(True)
+            self.size_x_label.setVisible(True)
+            self.size_x_spinbox.setVisible(True)
+            self.size_y_label.setVisible(True)
+            self.size_y_spinbox.setVisible(True)
+            self.sigma_label.setVisible(True)
+            self.sigma_spinbox.setVisible(True)
+            self.calculate_button.setVisible(True)
+
+            self.label_custom.setVisible(False)
+            self.kernel_display.setReadOnly(True)
+
+        elif self.radio_custom.isChecked():
+
+            self.label_parameters.setVisible(False)
+            self.size_x_label.setVisible(False)
+            self.size_x_spinbox.setVisible(False)
+            self.size_y_label.setVisible(False)
+            self.size_y_spinbox.setVisible(False)
+            self.sigma_label.setVisible(False)
+            self.sigma_spinbox.setVisible(False)
+            self.calculate_button.setVisible(False)
+
+            self.label_custom.setVisible(True)
+            self.kernel_display.setReadOnly(False)
+
+        elif self.radio_mean_blur.isChecked():
+
+            self.label_parameters.setVisible(True)
+            self.size_x_label.setVisible(True)
+            self.size_x_spinbox.setVisible(True)
+            self.size_y_label.setVisible(True)
+            self.size_y_spinbox.setVisible(True)
+            self.sigma_label.setVisible(False)
+            self.sigma_spinbox.setVisible(False)
+            self.calculate_button.setVisible(True)
+
+            self.label_custom.setVisible(False)
+            self.kernel_display.setReadOnly(True)
+
+        else:
+
+            self.label_parameters.setVisible(False)
+            self.size_x_label.setVisible(False)
+            self.size_x_spinbox.setVisible(False)
