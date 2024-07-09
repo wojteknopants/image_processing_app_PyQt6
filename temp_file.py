@@ -856,3 +856,68 @@ class ConvolutionFilterDialog(QDialog):
             self.label_parameters.setVisible(False)
             self.size_x_label.setVisible(False)
             self.size_x_spinbox.setVisible(False)
+            self.size_y_label.setVisible(False)
+            self.size_y_spinbox.setVisible(False)
+            self.sigma_label.setVisible(False)
+            self.sigma_spinbox.setVisible(False)
+            self.calculate_button.setVisible(False)
+
+            self.label_custom.setVisible(False)
+            self.kernel_display.setReadOnly(True)
+            
+
+
+    def update_kernel_display(self):
+        size_x = self.size_x_spinbox.value()
+        size_y = self.size_y_spinbox.value()
+        sigma = self.sigma_spinbox.value()
+
+        if self.radio_gaussian.isChecked():
+            self.kernel_maker.set_gaussian_kernel(size_x, size_y, sigma)
+            self.selected_filter_name = "Gaussian Blur"
+        elif self.radio_log.isChecked():
+            self.kernel_maker.set_log_kernel(size_x, size_y, sigma)
+            self.selected_filter_name = "LoG"
+        elif self.radio_sobel_h.isChecked():
+            self.kernel_maker.set_sobel_kernel('x')
+            self.selected_filter_name = "Sobel (H)"
+        elif self.radio_sobel_v.isChecked():
+            self.kernel_maker.set_sobel_kernel('y')
+            self.selected_filter_name = "Sobel (V)"
+        elif self.radio_prewitt_h.isChecked():
+            self.kernel_maker.set_prewitt_kernel('x')
+            self.selected_filter_name = "Prewitt (H)"
+        elif self.radio_prewitt_v.isChecked():
+            self.kernel_maker.set_prewitt_kernel('y')
+            self.selected_filter_name = "Prewitt (V)"
+        elif self.radio_roberts_h.isChecked():
+            self.kernel_maker.set_roberts_kernel('x')
+            self.selected_filter_name = "Roberts (H)"
+        elif self.radio_roberts_v.isChecked():
+            self.kernel_maker.set_roberts_kernel('y')
+            self.selected_filter_name = "Roberts (V)"
+        elif self.radio_laplace.isChecked():
+            self.kernel_maker.set_laplacian_kernel()
+            self.selected_filter_name = "Laplace"
+        elif self.radio_mean_blur.isChecked():
+            self.kernel_maker.set_mean_blur_kernel(size_x, size_y)
+            self.selected_filter_name = "Mean Blur"
+        elif self.radio_sharpen.isChecked():
+            self.kernel_maker.set_sharpen_kernel()
+            self.selected_filter_name = "Sharpen"
+
+        current_kernel = self.kernel_maker.get_kernel()
+        self.kernel_display.setText(np.array2string(current_kernel, formatter={'float_kind': lambda x: "%.2f" % x}, separator=', '))
+
+    def on_preview_clicked(self):
+        if self.current_image_hsv is None:
+            QMessageBox.warning(self, "Warning", "No image to edit.")
+            return
+        
+        # Set the kernel based on the selected filter
+        self.update_kernel_display()
+        # Perform convolution using the current kernel on the image
+        self.processed_image = self.kernel_maker.perform_convolution(self.current_image_hsv)
+        
+        # Display the processed image in the main application
+        self.parent().display_image(self.processed_image)
