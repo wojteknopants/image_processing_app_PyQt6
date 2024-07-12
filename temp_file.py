@@ -921,3 +921,8 @@ class ConvolutionFilterDialog(QDialog):
         
         # Display the processed image in the main application
         self.parent().display_image(self.processed_image)
+
+    def on_apply_clicked(self):
+        if self.current_image_hsv is None:
+            QMessageBox.warning(self, "Warning", "No image to edit.")
+            return
