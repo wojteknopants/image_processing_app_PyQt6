@@ -926,3 +926,97 @@ class ConvolutionFilterDialog(QDialog):
         if self.current_image_hsv is None:
             QMessageBox.warning(self, "Warning", "No image to edit.")
             return
+        self.processed_image = self.kernel_maker.perform_convolution(self.current_image_hsv)
+        self.accept()
+
+    def get_action_name(self):
+        return f"Applied {self.selected_filter_name} Filter"
+
+    def get_processed_image(self):
+        return self.processed_image
+
+class AppState:
+    def __init__(self, current_image_hsv=None, original_image_hsv=None, saturation_value=0, brightness_value=0, linear_contrast_value=0, exponential_contrast_value=0, action=None, who_edited_V = None):
+        self.current_image_hsv = current_image_hsv
+        self.original_image_hsv = original_image_hsv
+        self.saturation_value = saturation_value
+        self.brightness_value = brightness_value
+        self.linear_contrast_value = linear_contrast_value
+        self.exponential_contrast_value = exponential_contrast_value
+        self.action = action
+        self.who_edited_V = who_edited_V
+
+class MainWindow(QMainWindow):
+    def __init__(self):
+        super().__init__()
+
+        self.setWindowTitle('Image Processing App')
+        self.resize(800, 600)  # Set initial size of the window
+
+        # Variables
+        self.current_image_hsv = None
+        self.original_image_hsv = None
+        self.undo_stack = []
+        self.is_slider_active = False
+        self.who_edited_V = None
+
+        # Menubar
+        menubar = self.menuBar()
+        
+        # File menu
+        file_menu = menubar.addMenu('File')  
+        upload_action = file_menu.addAction('Upload Image')
+        upload_action.triggered.connect(self.upload_image)
+        save_action = file_menu.addAction('Save Image')
+        save_action.triggered.connect(self.save_image)
+
+        # Image Arithmetics menu
+        arithmetics_menu = menubar.addMenu('Image Arithmetics')
+        addition_action = arithmetics_menu.addAction('Addition')
+        addition_action.triggered.connect(lambda: self.arithmetic_operation("Addition"))
+        subtraction_action = arithmetics_menu.addAction('Subtraction')
+        subtraction_action.triggered.connect(lambda: self.arithmetic_operation("Subtraction"))
+        product_action = arithmetics_menu.addAction('Product')
+        product_action.triggered.connect(lambda: self.arithmetic_operation("Product"))
+
+        # Convolution filters menu
+        convolution_menu = menubar.addMenu('Convolution Filters')
+        convolution_action = QAction('Open Convolution Filters window', self)
+        convolution_action.triggered.connect(self.open_convolution_filter_dialog)
+        convolution_menu.addAction(convolution_action)
+
+        # Binarization menu
+        binarization_menu = menubar.addMenu('Binarization')
+        binarization_action = QAction('Open Binarization window', self)
+        binarization_action.triggered.connect(self.open_binarization_dialog)
+        binarization_menu.addAction(binarization_action)
+        # Canny menu
+        canny_menu = menubar.addMenu('Canny')
+        canny_action = QAction('Open Canny window', self)
+        canny_action.triggered.connect(self.open_canny_dialog)
+        canny_menu.addAction(canny_action)
+
+        # Main Widget
+        main_widget = QWidget()
+        self.setCentralWidget(main_widget)
+        
+        # Main layout
+        main_layout = QHBoxLayout()
+        main_widget.setLayout(main_layout)
+        
+        # Left Column (25% width)
+        left_column_widget = QWidget()
+        left_column_layout = QVBoxLayout()
+        left_column_widget.setLayout(left_column_layout)
+
+        #left_column_label = QLabel('L_Column')
+        #left_column_label.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Expanding)
+        #left_column_label.setStyleSheet('background-color: lightblue;')  # Just to visualize the layout
+        #left_column_layout.addWidget(left_column_label)
+
+        vertical_spacer = QSpacerItem(20, 40, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Expanding)
+        left_column_layout.addItem(vertical_spacer)
+
+        self.vincent_soille_button = QPushButton("Try Watershed")
+        self.vincent_soille_button.clicked.connect(self.apply_vincent_soille)
+        left_column_layout.addWidget(self.vincent_soille_button)
