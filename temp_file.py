@@ -1020,3 +1020,51 @@ class MainWindow(QMainWindow):
         self.vincent_soille_button = QPushButton("Try Watershed")
         self.vincent_soille_button.clicked.connect(self.apply_vincent_soille)
         left_column_layout.addWidget(self.vincent_soille_button)
+
+        # Create slider for linear contrast
+        self.linear_contrast_label = QLabel("Linear Contrast: a=0.0")
+        self.linear_contrast_label.setToolTip("(HSV) V = 1 / [1 + e^(-a(V-0.5))] ")
+        left_column_layout.addWidget(self.linear_contrast_label)
+
+        self.linear_contrast_slider = QSlider(Qt.Orientation.Horizontal)
+        self.linear_contrast_slider.setRange(-100, 600) 
+        self.linear_contrast_slider.setValue(0)  # default value representing no change = 0
+        self.linear_contrast_slider.setEnabled(False)
+        self.linear_contrast_slider.valueChanged.connect(self.adjust_linear_contrast)
+        self.linear_contrast_slider.sliderPressed.connect(self.slider_pressed)
+        self.linear_contrast_slider.sliderReleased.connect(self.slider_released_linear_contrast)
+        left_column_layout.addWidget(self.linear_contrast_slider)
+
+        # Create buttons for logarithmic contrast adjustment
+        self.logarithmic_contrast_label = QLabel("Logarithmic Contrast")
+        self.logarithmic_contrast_label.setToolTip("(HSV) V = log(V + 1) or V = exp(V)")
+        left_column_layout.addWidget(self.logarithmic_contrast_label)
+        
+        logarithmic_contrast_buttons_layout = QHBoxLayout()
+        self.logarithmic_contrast_minus_button = QPushButton("-")
+        self.logarithmic_contrast_minus_button.clicked.connect(lambda: self.adjust_logarithmic_contrast('inverse'))
+        logarithmic_contrast_buttons_layout.addWidget(self.logarithmic_contrast_minus_button)
+
+        self.logarithmic_contrast_plus_button = QPushButton("+")
+        self.logarithmic_contrast_plus_button.clicked.connect(lambda: self.adjust_logarithmic_contrast('add'))
+        logarithmic_contrast_buttons_layout.addWidget(self.logarithmic_contrast_plus_button)
+
+        left_column_layout.addLayout(logarithmic_contrast_buttons_layout)
+
+        # Create slider for exponential contrast
+        self.exponential_contrast_label = QLabel("Polynomial Contrast: gamma=1.0")
+        self.exponential_contrast_label.setToolTip("(HSV) V = V ** gamma")
+
+        left_column_layout.addWidget(self.exponential_contrast_label)
+
+        self.exponential_contrast_slider = QSlider(Qt.Orientation.Horizontal)
+        self.exponential_contrast_slider.setRange(-100, 100)
+        self.exponential_contrast_slider.setValue(0)  # default value representing gamma = 1.0
+        self.exponential_contrast_slider.setEnabled(False)
+        self.exponential_contrast_slider.valueChanged.connect(self.adjust_exponential_contrast)
+        self.exponential_contrast_slider.sliderPressed.connect(self.slider_pressed)
+        self.exponential_contrast_slider.sliderReleased.connect(self.slider_released_exponential_contrast)
+        left_column_layout.addWidget(self.exponential_contrast_slider)
+
+        # Apply monochromatic button
+        apply_monochromatic_button = QPushButton("Apply Monochromatic")
