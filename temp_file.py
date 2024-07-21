@@ -1068,3 +1068,148 @@ class MainWindow(QMainWindow):
 
         # Apply monochromatic button
         apply_monochromatic_button = QPushButton("Apply Monochromatic")
+        apply_monochromatic_button.clicked.connect(self.apply_monochromatic)
+        left_column_layout.addWidget(apply_monochromatic_button)
+
+        # Invert color (HSV) button
+        invert_color_button = QPushButton("Invert Color (HSV)")
+        invert_color_button.clicked.connect(self.invert_color_hsv)
+        left_column_layout.addWidget(invert_color_button)
+
+        # Apply negative (RGB) button
+        apply_negative_button = QPushButton("Apply Negative (RGB)")
+        apply_negative_button.clicked.connect(self.apply_negative_rgb)
+        left_column_layout.addWidget(apply_negative_button)
+
+        # Brightness label and slider
+        self.brightness_label = QLabel("Brightness: 0")
+        left_column_layout.addWidget(self.brightness_label)
+
+        self.brightness_slider = QSlider(Qt.Orientation.Horizontal)
+        self.brightness_slider.setRange(-100, 100)
+        self.brightness_slider.setValue(0)
+        self.brightness_slider.setEnabled(False)
+        self.brightness_slider.valueChanged.connect(self.adjust_brightness)
+        self.brightness_slider.sliderPressed.connect(self.slider_pressed)
+        self.brightness_slider.sliderReleased.connect(self.slider_released_brightness)
+        left_column_layout.addWidget(self.brightness_slider)
+
+        # Saturation label and slider
+        self.saturation_label = QLabel("Saturation: 0")
+        left_column_layout.addWidget(self.saturation_label)
+
+        self.saturation_slider = QSlider(Qt.Orientation.Horizontal)
+        self.saturation_slider.setRange(-100, 100)
+        self.saturation_slider.setValue(0)
+        self.saturation_slider.setEnabled(False)
+        #self.saturation_slider.valueChanged.connect(lambda: self.saturation_label.setText(f"Saturation: {self.saturation_slider.value()}"))
+        self.saturation_slider.valueChanged.connect(self.adjust_saturation)
+        self.saturation_slider.sliderPressed.connect(self.slider_pressed)
+        self.saturation_slider.sliderReleased.connect(self.slider_released_saturation)
+        left_column_layout.addWidget(self.saturation_slider)
+
+        # Histogram Section
+        histogram_label = QLabel("Histogram")
+        left_column_layout.addWidget(histogram_label)
+
+        hbox_checkboxes = QHBoxLayout()
+        self.checkbox_r = QCheckBox("R")
+        self.checkbox_g = QCheckBox("G")
+        self.checkbox_b = QCheckBox("B")
+        self.checkbox_v = QCheckBox("V")
+        self.checkbox_v.setChecked(True)  # Set V as the default checked option
+
+        # Connect checkboxes to the update function
+        self.checkbox_r.stateChanged.connect(self.update_histogram)
+        self.checkbox_g.stateChanged.connect(self.update_histogram)
+        self.checkbox_b.stateChanged.connect(self.update_histogram)
+        self.checkbox_v.stateChanged.connect(self.update_histogram)
+
+        # Add checkboxes to the hbox layout
+        hbox_checkboxes.addWidget(self.checkbox_r)
+        hbox_checkboxes.addWidget(self.checkbox_g)
+        hbox_checkboxes.addWidget(self.checkbox_b)
+        hbox_checkboxes.addWidget(self.checkbox_v)
+
+        left_column_layout.addLayout(hbox_checkboxes)
+
+        # Apply Histogram Equalization button
+        equalize_histogram_button = QPushButton("Equalize Histogram")
+        equalize_histogram_button.clicked.connect(self.equalize_histogram)
+        left_column_layout.addWidget(equalize_histogram_button)
+
+        # Add populated left column to main widget
+        main_layout.addWidget(left_column_widget, 1)  # 1 part of the total space
+        
+        # Right Column (75% width)
+        right_column_widget = QWidget()
+        right_column_layout = QVBoxLayout()
+        right_column_widget.setLayout(right_column_layout)
+        right_column_widget.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        
+        # Upper item of right column (75% height)
+        self.upper_item_label = QLabel('Upload something')
+        self.upper_item_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.upper_item_label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
+        self.upper_item_label.setStyleSheet('background-color: lightgreen;')  # Just to visualize the layout
+        self.upper_item_label.setScaledContents(True)
+        right_column_layout.addWidget(self.upper_item_label, 3)  # 3 parts of the total space
+        
+        # Lower item of right column (25% height)
+        # Initialize PyQtGraph plot widget for histogram
+        self.lower_item_histogram = pg.PlotWidget()
+        self.lower_item_histogram.setBackground('w')
+        self.lower_item_histogram.setXRange(0, 255)
+        self.lower_item_histogram.setYRange(0, 1)
+        self.lower_item_histogram.showGrid(x=True, y=True)
+        #self.lower_item_histogram.setLabel('left', 'Frequency')
+        #self.lower_item_histogram.setLabel('bottom', 'Pixel Value')
+        #self.lower_item_histogram.setTitle("Histogram")
+        #self.lower_item_histogram.setLimits(xMin=0, xMax=255, yMin=0, yMax=1)
+        self.lower_item_histogram.setMouseEnabled(True, False)
+        right_column_layout.addWidget(self.lower_item_histogram, 1)  # 1 part of the total space
+        
+        # Add populated right column to main widget
+        main_layout.addWidget(right_column_widget, 3)  # 3 parts of the total space
+
+        # Bottom Toolbar
+        self.bottom_toolbar = QToolBar()
+        self.bottom_toolbar.setMovable(False)
+        self.bottom_toolbar.setFloatable(False)
+        self.bottom_toolbar.setStyleSheet("background-color: #D6CADD;")  # Set background color to pale violet
+        self.addToolBar(Qt.ToolBarArea.BottomToolBarArea, self.bottom_toolbar)
+
+        # Undo action for bottom toolbar
+        self.undo_action = QAction('Undo', self)
+        self.undo_action.triggered.connect(self.undo)
+        self.update_undo_tooltip()
+        self.bottom_toolbar.addAction(self.undo_action)
+        # We cannot set style directly on QAction, so we need to access the QToolButton associated with it
+        undo_button_widget = self.bottom_toolbar.widgetForAction(self.undo_action)
+        undo_button_widget.setStyleSheet("padding: 0 10px; margin: 1 3px; background-color: #ede1ec")  # Add padding and margin and color
+
+        # Status tip label
+        self.status_tip_label = QLabel("")
+        self.bottom_toolbar.addWidget(self.status_tip_label)
+
+    def upload_image(self):
+        file_name, _ = QFileDialog.getOpenFileName(self, "Open Image File", "", "Images (*.png *.xpm *.jpg *.jpeg *.bmp *.pbm *.pgm *.ppm *.pnm);;All Files (*)")
+        if file_name:
+            self.original_image_hsv = Image.open(file_name).convert("HSV")
+            self.current_image_hsv = self.original_image_hsv.copy()
+            self.display_image(self.current_image_hsv)
+            self.save_state("Uploaded Image")
+            self.saturation_slider.setEnabled(True)  # Enable the slider
+            self.brightness_slider.setEnabled(True)  # Enable the slider
+            self.linear_contrast_slider.setEnabled(True) # Enable the slider
+            self.exponential_contrast_slider.setEnabled(True) # Enable the slider
+
+    def save_image(self):
+        if self.current_image_hsv is None:
+            QMessageBox.warning(self, "Warning", "No image to save.")
+            return
+        
+        file_name, _ = QFileDialog.getSaveFileName(self, 
+            "Save Image File", "", 
+            "PPM Files (*.ppm);;All Files (*)")
+        if file_name:
