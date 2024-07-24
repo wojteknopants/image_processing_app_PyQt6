@@ -1213,3 +1213,79 @@ class MainWindow(QMainWindow):
             "Save Image File", "", 
             "PPM Files (*.ppm);;All Files (*)")
         if file_name:
+            rgb_image = self.current_image_hsv.convert('RGB')
+            rgb_image.save(file_name, format='PPM')
+
+    def display_image(self, hsv_image):
+        rgb_image = hsv_image.convert('RGB')
+        qpixmap = self.pil_to_qpixmap(rgb_image)
+        if qpixmap:
+            scaled_pixmap = qpixmap.scaled(self.upper_item_label.size(), Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
+            self.upper_item_label.setPixmap(scaled_pixmap)
+
+        self.update_histogram()
+
+    def pil_to_qpixmap(self, pil_image):
+        image_np = np.array(pil_image)
+        height, width, channels = image_np.shape
+        bytes_per_line = channels * width
+        qimage = QImage(image_np.data, width, height, bytes_per_line, QImage.Format.Format_RGB888)
+        return QPixmap.fromImage(qimage)
+    
+    def apply_vincent_soille(self):
+        result_image = self.watershed_cv2(self.current_image_hsv)
+        self.display_image(result_image)
+    
+    def watershed_cv2(self, pil_image_hsv):
+        # Convert Pillow image to RGB and then to numpy array
+        pil_image_rgb = pil_image_hsv.convert('RGB')
+        image = np.array(pil_image_rgb)
+        gray = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
+
+        # Apply Otsu's thresholding
+        ret, thresh = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
+
+        # Remove noise
+        kernel = np.ones((3, 3), np.uint8)
+        opening = cv2.morphologyEx(thresh, cv2.MORPH_OPEN, kernel, iterations=2)
+
+        # Sure background area
+        sure_bg = cv2.dilate(opening, kernel, iterations=3)
+
+        # Finding sure foreground area
+        dist_transform = cv2.distanceTransform(opening, cv2.DIST_L2, 5)
+        ret, sure_fg = cv2.threshold(dist_transform, 0.7 * dist_transform.max(), 255, 0)
+
+        # Finding unknown region
+        sure_fg = np.uint8(sure_fg)
+        unknown = cv2.subtract(sure_bg, sure_fg)
+
+        # Marker labeling
+        ret, markers = cv2.connectedComponents(sure_fg)
+
+        # Add one to all labels so that sure background is not 0, but 1
+        markers = markers + 1
+
+        # Mark the unknown region with zero
+        markers[unknown == 255] = 0
+
+        # Apply watershed
+        markers = cv2.watershed(image, markers)
+        image[markers == -1] = [255, 0, 0]
+
+        # Convert back to Pillow image
+        result_image = Image.fromarray(image)
+        result_image_hsv = result_image.convert('HSV')
+
+        return result_image_hsv
+
+    def open_canny_dialog(self):
+        dialog = CannyDialog(self, self.current_image_hsv)
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            self.current_image_hsv = dialog.get_processed_image()
+            self.save_state("Applied Canny Edge Detection")
+            self.display_image(self.current_image_hsv)
+        else:
+            self.display_image(self.current_image_hsv)
+    
+    def open_binarization_dialog(self):
