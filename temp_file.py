@@ -1289,3 +1289,103 @@ class MainWindow(QMainWindow):
             self.display_image(self.current_image_hsv)
     
     def open_binarization_dialog(self):
+        dialog = BinarizationDialog(self, self.current_image_hsv)
+        result = dialog.exec()
+        if result == 1:
+            self.current_image_hsv = dialog.get_processed_image()
+            self.original_image_hsv = self.current_image_hsv.copy()
+            action_name = dialog.get_action_name()
+            self.save_state(action_name)
+            self.display_image(self.current_image_hsv)
+        else:
+            self.display_image(self.current_image_hsv)
+
+    def open_convolution_filter_dialog(self):
+        dialog = ConvolutionFilterDialog(self, self.current_image_hsv)
+        result = dialog.exec()
+        
+        if result == 1:
+            self.current_image_hsv = dialog.get_processed_image()
+            self.original_image_hsv = self.current_image_hsv.copy()
+            action_name = dialog.get_action_name() 
+            self.save_state(action_name)
+            self.display_image(self.current_image_hsv)
+        else:
+            self.display_image(self.current_image_hsv)
+
+    def update_histogram(self):
+        if self.current_image_hsv is None:
+            return
+
+        selected_channels = self.get_selected_channels()
+        if not selected_channels:
+            return
+
+        self.lower_item_histogram.clear()
+
+        if any(channel in selected_channels for channel in ['R', 'G', 'B']):
+            rgb_image = self.current_image_hsv.convert('RGB')
+            rgb_array = np.array(rgb_image)
+
+            if 'R' in selected_channels:
+                R_values = rgb_array[..., 0].flatten()
+                hist, bins = np.histogram(R_values, bins=256, range=(0, 255))
+                hist = hist / hist.max()
+                bins = bins[:-1]
+                self.lower_item_histogram.plot(bins, hist, stepMode=False, fillLevel=0, brush=(255, 0, 0, 150), pen='r', name='R')  # Red color for R
+
+            if 'G' in selected_channels:
+                G_values = rgb_array[..., 1].flatten()
+                hist, bins = np.histogram(G_values, bins=256, range=(0, 255))
+                hist = hist / hist.max()
+                bins = bins[:-1]
+                self.lower_item_histogram.plot(bins, hist, stepMode=False, fillLevel=0, brush=(0, 255, 0, 150), pen='g', name='G')  # Green color for G
+
+            if 'B' in selected_channels:
+                B_values = rgb_array[..., 2].flatten()
+                hist, bins = np.histogram(B_values, bins=256, range=(0, 255))
+                hist = hist / hist.max()
+                bins = bins[:-1]
+                self.lower_item_histogram.plot(bins, hist, stepMode=False, fillLevel=0, brush=(0, 0, 255, 150), pen='b', name='B')  # Blue color for B
+
+        if 'V' in selected_channels:
+            hsv_array = np.array(self.current_image_hsv)
+            V_values = hsv_array[..., 2].flatten()
+            hist, bins = np.histogram(V_values, bins=256, range=(0, 255))
+            hist = hist / hist.max()  # Normalize the histogram
+            bins = bins[:-1]  # Remove the last bin edge
+            self.lower_item_histogram.plot(bins, hist, stepMode=False, fillLevel=0, brush=(150, 150, 150, 150), pen='d', name='V')  # Grey color for V
+
+    def histogram_equalization(self, image_hsv):
+        # Convert PIL Image to numpy array
+        hsv_array = np.array(image_hsv)
+        
+        # Separate the V channel
+        v_channel = hsv_array[:, :, 2]
+        
+        # Compute the histogram of the V channel
+        hist, bins = np.histogram(v_channel.flatten(), 256, [0, 256])
+        
+        # Compute the cumulative distribution function (CDF) (dystrybuanta)
+        cdf = hist.cumsum()
+        cdf_normalized = cdf * (255 / cdf[-1])
+        
+        # Use the normalized CDF to map the original V values to equalized values
+        equalized_v = np.interp(v_channel.flatten(), bins[:-1], cdf_normalized)
+        
+        # Reshape and replace the V channel in the HSV array
+        hsv_array[:, :, 2] = equalized_v.reshape(v_channel.shape)
+        
+        # Convert back to PIL Image and return
+        return Image.fromarray(hsv_array, "HSV")
+    
+    def get_selected_channels(self):
+        selected_channels = []
+        if self.checkbox_r.isChecked():
+            selected_channels.append('R')
+        if self.checkbox_g.isChecked():
+            selected_channels.append('G')
+        if self.checkbox_b.isChecked():
+            selected_channels.append('B')
+        if self.checkbox_v.isChecked():
+            selected_channels.append('V')
