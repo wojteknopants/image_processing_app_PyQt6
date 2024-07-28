@@ -1389,3 +1389,49 @@ class MainWindow(QMainWindow):
             selected_channels.append('B')
         if self.checkbox_v.isChecked():
             selected_channels.append('V')
+        return selected_channels
+
+    
+
+    
+    def update_original_V_with_current_V(self):
+        
+        if self.original_image_hsv is None or self.current_image_hsv is None:
+            QMessageBox.warning(self, "Warning", "No image to update V dimension.")
+            return
+        
+        # Convert both images to numpy arrays
+        original_hsv_array = np.array(self.original_image_hsv)
+        current_hsv_array = np.array(self.current_image_hsv)
+        
+        # Update the V dimension in original with the V dimension from current
+        original_hsv_array[..., 2] = current_hsv_array[..., 2]
+        
+        # Convert back to PIL image and update variable
+        self.original_image_hsv = Image.fromarray(original_hsv_array, "HSV")
+
+    def reset_V_sliders_except(self, exception=None):
+        
+        if exception != 'brightness':
+            self.brightness_slider.blockSignals(True)
+            self.brightness_slider.setValue(0)
+            self.brightness_label.setText(f"Brightness: {0}")
+            self.brightness_slider.blockSignals(False)
+        
+        if exception != 'linear_contrast':
+            self.linear_contrast_slider.blockSignals(True)
+            self.linear_contrast_slider.setValue(0) 
+            self.linear_contrast_label.setText(f"Linear Contrast: a={0.00:.2f}")
+            self.linear_contrast_slider.blockSignals(False)
+        
+        if exception != 'exponential_contrast':
+            self.exponential_contrast_slider.blockSignals(True)
+            self.exponential_contrast_slider.setValue(0)  
+            self.exponential_contrast_label.setText(f"Polynomial Contrast: gamma={1.00:.2f}")
+            self.exponential_contrast_slider.blockSignals(False)
+
+    def arithmetic_operation(self, operation):
+        if self.original_image_hsv is None:
+            QMessageBox.warning(self, "Warning", "No base image loaded.")
+            return
+
