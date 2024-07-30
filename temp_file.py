@@ -1435,3 +1435,70 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "Warning", "No base image loaded.")
             return
 
+        file_name, _ = QFileDialog.getOpenFileName(self, 
+            f"Open Image File for {operation}", "", 
+            "Images (*.png *.xpm *.jpg *.jpeg *.bmp *.pbm *.pgm *.ppm *.pnm);;All Files (*)")
+        if not file_name:
+            return
+
+        second_image_hsv = Image.open(file_name).convert("HSV")
+        result_image_hsv = self.perform_arithmetic(self.original_image_hsv, second_image_hsv, operation)
+        self.current_image_hsv = result_image_hsv
+        self.original_image_hsv = result_image_hsv
+        self.display_image(self.current_image_hsv)
+        self.save_state(f"Arithmetic Operation: {operation}")
+
+    def perform_arithmetic(self, image1, image2, operation):
+        rgb_image_1 = image1.convert('RGB')
+        rgb_image_2 = image2.convert('RGB')
+        arr1 = np.array(rgb_image_1)
+        arr2 = np.array(rgb_image_2)
+
+        if operation == "Addition":
+            result_arr = np.clip(arr1 + arr2, 0, 255)
+        elif operation == "Subtraction":
+            result_arr = np.clip(arr1 - arr2, 0, 255)
+        elif operation == "Product":
+            result_arr = np.clip(arr1 * arr2 // 255, 0, 255)
+
+        return Image.fromarray(result_arr.astype('uint8'), 'HSV')
+    
+    def equalize_histogram(self):
+        if self.current_image_hsv is None:
+            QMessageBox.warning(self, "Warning", "No image to apply histogram equalization.")
+            return
+        
+        self.current_image_hsv = self.histogram_equalization(self.current_image_hsv)
+        self.display_image(self.current_image_hsv)
+        self.save_state("Applied Histogram Equalization")
+    
+    def adjust_linear_contrast(self):
+        # Linear contrast adjustment: V = 1 / 1 + e^(-a(V-0.5))
+
+        a = self.linear_contrast_slider.value()/100
+        self.linear_contrast_label.setText(f"Linear Contrast: a={a:.2f}")
+
+        if self.current_image_hsv is None or self.original_image_hsv is None:
+            QMessageBox.warning(self, "Warning", "No image to adjust linear contrast.")
+            return
+
+        if self.who_edited_V != 'linear_contrast':
+            self.update_original_V_with_current_V()
+            self.reset_V_sliders_except('linear_contrast')
+            
+        
+        hsv_array = np.array(self.current_image_hsv)
+        original_hsv_array = np.array(self.original_image_hsv)
+        
+        adjusted_v_channel = self.adjustable_sigmoid_contrast(original_hsv_array[..., 2], a)
+        hsv_array[..., 2] = np.clip(adjusted_v_channel, 0, 255)
+        self.current_image_hsv = Image.fromarray(hsv_array, "HSV")
+        self.display_image(self.current_image_hsv)
+        self.who_edited_V = 'linear_contrast'
+        
+    def adjustable_sigmoid_contrast(self, v_channel, a=1):
+        
+        # Normalize the input
+        x = v_channel / 255.0
+        
+        # Finetuning
