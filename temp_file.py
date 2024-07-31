@@ -1502,3 +1502,263 @@ class MainWindow(QMainWindow):
         x = v_channel / 255.0
         
         # Finetuning
+        a=a/2
+
+        # Define the steepness of the sigmoid curve, 10*a works good
+        steepness = 10 * a
+
+        # Calculate the sigmoid component with the defined steepness
+        sigmoid = 1 / (1 + np.exp(-steepness * (x - 0.5)))
+
+        # Compute alpha to manage blending based on the absolute value of a
+        alpha = np.tanh(np.abs(a))
+
+        # Blend the original and sigmoid values based on a
+        output = (1 - alpha) * x + alpha * sigmoid
+
+        # Scale back to 0-255 and convert to integer type
+        return (output * 255).astype(np.uint8)
+    
+    
+    
+    def adjust_logarithmic_contrast(self, operation):
+        # Logarithmic contrast adjustment: V = c * log(V + 1)
+        # After testing slider for c, it was just set to 1
+        if self.current_image_hsv is None or self.original_image_hsv is None:
+            QMessageBox.warning(self, "Warning", "No image to adjust logarithmic contrast.")
+            return        
+
+        hsv_array = np.array(self.current_image_hsv)
+        hsv_normalized = hsv_array / 255.0
+
+        if operation == 'add':
+            hsv_normalized[..., 2] = np.clip(np.log2(1+hsv_normalized[..., 2]), 0, 1)
+            action_text = "Added Logarithmic Contrast"
+        elif operation == 'inverse':
+            hsv_normalized[..., 2] = np.clip((2 ** (hsv_normalized[..., 2]) - 1), 0, 1)
+            action_text = "Inversed Logarithmic Contrast"
+        else:
+            return
+
+        hsv_array = (hsv_normalized * 255).astype(np.uint8)
+        self.current_image_hsv = Image.fromarray(hsv_array, "HSV")
+
+        self.update_original_V_with_current_V
+        self.reset_V_sliders_except()
+        
+
+        self.display_image(self.current_image_hsv)
+        self.save_state(action_text)
+
+
+    def adjust_exponential_contrast(self):
+        # Exponential contrast adjustment: V = V ** gamma
+
+        gamma = 1 + self.exponential_contrast_slider.value() / 100.0
+        self.exponential_contrast_label.setText(f"Polynomial Contrast: gamma={gamma:.2f}")
+
+        if self.current_image_hsv is None or self.original_image_hsv is None:
+            QMessageBox.warning(self, "Warning", "No image to adjust exponential contrast.")
+            return
+
+        if self.who_edited_V != 'exponential_contrast':
+            self.update_original_V_with_current_V()
+            self.reset_V_sliders_except('exponential_contrast')
+            
+        hsv_array = np.array(self.current_image_hsv)
+        original_hsv_array = np.array(self.original_image_hsv)
+        hsv_array[..., 2] = np.clip(255 * (original_hsv_array[..., 2] / 255) ** gamma, 0, 255)
+        self.current_image_hsv = Image.fromarray(hsv_array, "HSV")
+        self.display_image(self.current_image_hsv)
+        self.who_edited_V = 'exponential_contrast'
+        
+
+
+    def apply_monochromatic(self):
+        if self.current_image_hsv is None:
+            QMessageBox.warning(self, "Warning", "No image to apply monochromatic effect.")
+            return
+
+        hsv_array = np.array(self.current_image_hsv)
+
+        # Convert to grayscale by setting saturation to 0
+        hsv_array[..., 1] = 0
+        monochromatic_image_hsv = Image.fromarray(hsv_array, 'HSV')
+        self.current_image_hsv = monochromatic_image_hsv
+        self.display_image(self.current_image_hsv)
+
+        # Set saturation slider to 0 to reflect current state
+        self.saturation_slider.blockSignals(True) 
+        self.saturation_slider.setValue(-100)
+        self.saturation_slider.blockSignals(False)
+        self.saturation_label.setText(f"Saturation: {-100}")
+
+        self.save_state("Applied Monochromatic")
+
+    def invert_color_hsv(self):
+        if self.current_image_hsv is None:
+            QMessageBox.warning(self, "Warning", "No image to apply color inversion.")
+            return
+
+        hsv_array = np.array(self.current_image_hsv)
+        # Invert the Hue (H) channel by adding 128 (180 degrees equivalent in 0-255 range)
+        hsv_array[:, :, 0] = (hsv_array[:, :, 0] + 128) % 256  
+        inverted_image_hsv = Image.fromarray(hsv_array, 'HSV')
+        self.current_image_hsv = inverted_image_hsv
+        self.display_image(self.current_image_hsv)
+        self.save_state("Inverted Color (HSV)")
+
+    def apply_negative_rgb(self):
+        if self.current_image_hsv is None:
+            QMessageBox.warning(self, "Warning", "No image to apply negative.")
+            return
+
+        rgb_image = self.current_image_hsv.convert('RGB')
+        arr = np.array(rgb_image)
+        negative_arr = 255 - arr
+        negative_image = Image.fromarray(negative_arr, "RGB")
+        
+        self.current_image_hsv = negative_image.convert("HSV")
+        self.original_image_hsv = self.current_image_hsv.copy()
+        self.display_image(self.current_image_hsv)
+        self.save_state("Applied Negative (RGB)")
+
+    def adjust_saturation(self):
+        if self.current_image_hsv is None or self.original_image_hsv is None:
+            QMessageBox.warning(self, "Warning", "No image to adjust saturation.")
+            return
+
+        value = self.saturation_slider.value()
+        self.saturation_label.setText(f"Saturation: {value}")
+
+        hsv_array_orig = np.array(self.original_image_hsv)
+        factor = (value + 100) / 100
+        new_saturation = np.clip((hsv_array_orig[:, :, 1] * factor), 0, 255) 
+
+        hsv_array_current = np.array(self.current_image_hsv)
+        hsv_array_current[:, :, 1] = new_saturation.astype(np.uint8)
+        self.current_image_hsv = Image.fromarray(hsv_array_current, "HSV")
+        self.display_image(self.current_image_hsv)
+
+    def adjust_brightness(self):
+        if self.current_image_hsv is None or self.original_image_hsv is None:
+            QMessageBox.warning(self, "Warning", "No image to adjust brightness.")
+            return
+        
+        # Check if the last method was us (brightness) or not
+        if self.who_edited_V != 'brightness':
+            # Update the V dimension of original_image_hsv to the current state, so we won't cancel out previous changes to V (e.g. contrast)
+            self.update_original_V_with_current_V()
+            self.reset_V_sliders_except('brightness')
+            
+
+        value = self.brightness_slider.value()
+        self.brightness_label.setText(f"Brightness: {value}")
+
+        hsv_array_orig = np.array(self.original_image_hsv)
+        #factor = (value + 100) / 100
+        shift = value/100 * 255
+        #new_brightness = np.clip((hsv_array_orig[:, :, 2] * factor), 0, 255) 
+        new_brightness = np.clip((hsv_array_orig[:, :, 2] + shift), 0, 255) 
+
+        hsv_array_current = np.array(self.current_image_hsv)
+        hsv_array_current[:, :, 2] = new_brightness.astype(np.uint8)
+        self.current_image_hsv = Image.fromarray(hsv_array_current, "HSV")
+        self.display_image(self.current_image_hsv)
+        self.who_edited_V = 'brightness'
+
+    def slider_pressed(self):
+        self.is_slider_active = True
+
+    def slider_released_linear_contrast(self):
+        if self.is_slider_active:
+            a = 1 + self.linear_contrast_slider.value() / 100.0
+            self.adjust_linear_contrast()  # Apply the adjustment only when the slider is released
+            self.save_state(f"Adjusted Linear Contrast: a={a:.2f}")
+            self.is_slider_active = False
+
+    def slider_released_exponential_contrast(self):
+        if self.is_slider_active:
+            gamma = 1 + self.exponential_contrast_slider.value() / 100.0
+            self.adjust_exponential_contrast()  # Apply the adjustment only when the slider is released
+            self.save_state(f"Adjusted Polynomial Contrast: gamma={gamma:.2f}")
+            self.is_slider_active = False
+
+    def slider_released_saturation(self):
+        if self.is_slider_active:
+            value = self.saturation_slider.value()
+            self.adjust_saturation()  # Apply the adjustment only when the slider is released
+            self.save_state(f"Adjusted Saturation: {value}")
+            self.is_slider_active = False
+
+    def slider_released_brightness(self):
+        if self.is_slider_active:
+            value = self.brightness_slider.value()
+            self.adjust_brightness()  # Apply the adjustment only when the slider is released
+            self.save_state(f"Adjusted Brightness: {value}")
+            self.is_slider_active = False
+
+    def undo(self):
+        if len(self.undo_stack) > 1:
+            self.undo_stack.pop()
+            state = self.undo_stack[-1]
+            self.load_state(state)
+
+        else:
+            QMessageBox.warning(self, "Warning", "No more actions to undo.")
+
+    def update_undo_tooltip(self):
+        tooltip_text = "Undo Stack:\n" + "\n".join([state.action for state in self.undo_stack])
+        self.bottom_toolbar.setToolTip(tooltip_text)
+
+    def save_state(self, action):
+        if len(self.undo_stack) >= 10:
+            self.undo_stack.pop(0)
+
+        state_copy = AppState(
+            current_image_hsv=self.current_image_hsv.copy() if self.current_image_hsv else None,
+            original_image_hsv=self.original_image_hsv.copy() if self.original_image_hsv else None,
+            saturation_value=self.saturation_slider.value(),
+            brightness_value=self.brightness_slider.value(),
+            linear_contrast_value=self.exponential_contrast_slider.value(),
+            exponential_contrast_value=self.exponential_contrast_slider.value(),
+            action=action,
+            who_edited_V=self.who_edited_V
+        )
+
+        self.undo_stack.append(state_copy)
+        self.status_tip_label.setText(action)  # Show the latest action in the status tip label
+        self.update_undo_tooltip()
+    
+    def load_state(self, state):
+        self.current_image_hsv = state.current_image_hsv
+        self.original_image_hsv = state.original_image_hsv
+        self.saturation_slider.blockSignals(True)  # Block signals to prevent triggering valueChanged event
+        self.brightness_slider.blockSignals(True)  # Block signals to prevent triggering valueChanged event
+        self.linear_contrast_slider.blockSignals(True)
+        self.exponential_contrast_slider.blockSignals(True)
+        self.saturation_slider.setValue(state.saturation_value)
+        self.brightness_slider.setValue(state.brightness_value)
+        self.linear_contrast_slider.setValue(state.linear_contrast_value)
+        self.exponential_contrast_slider.setValue(state.exponential_contrast_value)
+        self.saturation_slider.blockSignals(False)
+        self.brightness_slider.blockSignals(False)
+        self.linear_contrast_slider.blockSignals(False)
+        self.exponential_contrast_slider.blockSignals(False)
+        self.saturation_label.setText(f"Saturation: {state.saturation_value}")
+        self.brightness_label.setText(f"Brightness: {state.brightness_value}")
+        self.linear_contrast_label.setText(f"Linear Contrast: a={state.linear_contrast_value:.2f}")
+        self.exponential_contrast_label.setText(f"Polynomial Contrast: gamma={state.exponential_contrast_value:.2f}")
+        self.status_tip_label.setText(state.action)
+        self.who_edited_V = state.who_edited_V
+        self.update_undo_tooltip()
+        self.display_image(self.current_image_hsv)
+
+            
+            
+
+
+app = QApplication(sys.argv)
+window = MainWindow()
+window.show()
+sys.exit(app.exec())
